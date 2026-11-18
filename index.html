@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Atlas test page</title>
+<style>
+body { margin: 2rem auto; max-width: 52rem; padding: 0 1rem; font: 16px/1.5 sans-serif; color: #1d232a; background: #fafafa; }
+h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
+pre { white-space: pre-wrap; background: #fff; border: 1px solid #ccd; padding: .75rem; }
+form { background: #fff; border: 1px solid #ccd; padding: .75rem; margin: 1rem 0; }
+label { display: block; margin: .25rem 0; }
+input { font: inherit; width: 18rem; }
+button { font: inherit; margin-top: .5rem; }
+</style>
+</head>
+<body>
+<h1>Atlas test page</h1>
+<p>This page sends nothing and collects nothing. It shows, on this screen only, what this browser tells a page about itself.</p>
+<h2>The browser's report</h2>
+<pre id="report">report: starting</pre>
+<h2>A fake form</h2>
+<form id="fake">
+<label>Name <input id="fake-name" type="text" autocomplete="off"></label>
+<label>Note <input id="fake-note" type="text" autocomplete="off"></label>
+<button id="fake-send" type="submit">Send</button>
+</form>
+<p id="fake-result">Nothing typed here leaves this page.</p>
+<h2>Another site</h2>
+<p><a id="other-site" href="https://github.github.io/">Another github.io site</a> (a browser that may reach only this page must refuse it).</p>
+<script>
+(function () {
+  "use strict";
+  var lines = [];
+  var report = document.getElementById("report");
+  function show(extra) { report.textContent = lines.concat(extra || []).join("\n"); }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  var off = -new Date().getTimezoneOffset();
+  var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown");
+  lines.push("timezone: " + tz + " (UTC" + (off < 0 ? "-" : "+") + pad(Math.floor(Math.abs(off) / 60)) + ":" + pad(Math.abs(off) % 60) + ")");
+  lines.push("screen: (after the load)");
+  function screenLine() {
+    return "screen: " + screen.width + "x" + screen.height + ", colour depth " + screen.colorDepth + ", pixel ratio " +
+           window.devicePixelRatio + ", window " + window.outerWidth + "x" + window.outerHeight;
+  }
+  var families = ["DejaVu Sans", "Liberation Sans", "Noto Sans", "Noto Sans CJK JP", "Noto Color Emoji", "Ubuntu",
+                  "Arial", "Helvetica", "Times New Roman", "Segoe UI", "Unifont"];
+  var ctx = document.createElement("canvas").getContext("2d");
+  function width(font) { ctx.font = "32px " + font; return ctx.measureText("mmmmmmmmmlli 10 WWW").width; }
+  var base = { m: width("monospace"), s: width("sans-serif"), r: width("serif") };
+  lines.push("fonts: " + families.map(function (f) {
+    var q = JSON.stringify(f);
+    var present = width(q + ",monospace") !== base.m || width(q + ",sans-serif") !== base.s || width(q + ",serif") !== base.r;
+    return f + (present ? " present" : " absent");
+  }).join(", "));
+  lines.push("robot flag: " + String(navigator.webdriver));
+  var gl = null;
+  try { gl = document.createElement("canvas").getContext("webgl"); } catch (e) { gl = null; }
+  if (gl) {
+    var info = gl.getExtension("WEBGL_debug_renderer_info");
+    lines.push("webgl: vendor " + (info ? gl.getParameter(info.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR)) +
+               "; renderer " + (info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+  } else {
+    lines.push("webgl: none");
+  }
+  lines.push("user agent: " + navigator.userAgent);
+  lines.push("platform: " + navigator.platform);
+  lines.push("languages: " + (navigator.languages || []).join(", "));
+  var types = [], ended = false, loaded = false, rtc = "";
+  function finish() {
+    if (!ended || !loaded || rtc === "") { return; }
+    lines[1] = screenLine();
+    lines.push(rtc);
+    lines.push("report: complete");
+    rtc = "";
+    show();
+  }
+  function webrtc(state) {
+    if (ended) { return; }
+    ended = true;
+    rtc = "webrtc: " + (types.length ? types.length + " candidates gathered (" + types.join(", ") + ")" : "no candidates") +
+          " (" + state + ")";
+    finish();
+  }
+  window.addEventListener("load", function () { loaded = true; finish(); });
+  try {
+    var pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel("report");
+    pc.onicecandidate = function (e) {
+      if (e.candidate) { types.push(e.candidate.type || "unknown"); } else { webrtc("gathering complete"); pc.close(); }
+    };
+    pc.createOffer().then(function (o) { return pc.setLocalDescription(o); }).catch(function () { webrtc("no offer"); });
+    setTimeout(function () { webrtc("gathering still running after 5 s"); }, 5000);
+  } catch (e) {
+    webrtc("no peer connection");
+  }
+  show(["webrtc: gathering"]);
+  document.getElementById("fake").addEventListener("submit", function (e) {
+    e.preventDefault();
+    document.getElementById("fake-result").textContent = "nothing was sent";
+  });
+})();
+</script>
+</body>
+</html>

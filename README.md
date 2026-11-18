@@ -1,0 +1,2 @@
+This is the Atlas browser worker's test page: one self-contained file that shows, on the screen only, what the visiting browser reports about itself (time zone, screen, fonts, robot flag, WebGL, WebRTC, user agent, platform and languages), with a fake form that submits nowhere.
+It sends nothing and collects nothing: no script, font, image or analytics from anywhere else, and its Content-Security-Policy refuses every connection and form submission.
